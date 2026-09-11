@@ -1,0 +1,21 @@
+FROM python:3.13-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    MAILFLOW_FRONTEND_DIR=/app/frontend
+
+WORKDIR /app/backend
+COPY backend/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && addgroup --system mailflow \
+    && adduser --system --ingroup mailflow --home /app mailflow
+
+COPY --chown=mailflow:mailflow backend /app/backend
+COPY --chown=mailflow:mailflow frontend /app/frontend
+COPY --chown=mailflow:mailflow deploy/render /app/deploy/render
+RUN chmod +x /app/deploy/render/*.sh
+
+USER mailflow
+EXPOSE 10000
+CMD ["/app/deploy/render/start-web.sh"]

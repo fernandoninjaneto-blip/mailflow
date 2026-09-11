@@ -1,0 +1,89 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: mailflow
+      POSTGRES_USER: mailflow
+      POSTGRES_PASSWORD: mailflow_dev
+    volumes:
+      - mailflow_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailflow -d mailflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: &mailflow_env
+      APP_ENV: development
+      DATABASE_URL: postgresql+psycopg://mailflow:mailflow_dev@db:5432/mailflow
+      DB_CONNECT_TIMEOUT_SECONDS: ${DB_CONNECT_TIMEOUT_SECONDS:-10}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+      DB_MAX_OVERFLOW: ${DB_MAX_OVERFLOW:-10}
+      DB_POOL_RECYCLE_SECONDS: ${DB_POOL_RECYCLE_SECONDS:-1800}
+      SESSION_COOKIE_NAME: mailflow_session
+      CSRF_COOKIE_NAME: mailflow_csrf
+      SESSION_DAYS: "30"
+      COOKIE_SECURE: "false"
+      PASSWORD_RESET_MINUTES: "30"
+      MAILFLOW_EXPOSE_RESET_TOKEN: "true"
+      MAILFLOW_CSRF_ENABLED: "false"
+      MAILFLOW_ORIGIN_CHECK_ENABLED: "false"
+      MAILFLOW_RATE_LIMIT_ENABLED: "false"
+      TRUST_PROXY_HEADERS: "true"
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-console}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      RESEND_API_BASE: ${RESEND_API_BASE:-https://api.resend.com}
+      MAILFLOW_WORKER_INTERVAL_SECONDS: ${MAILFLOW_WORKER_INTERVAL_SECONDS:-2}
+      MAILFLOW_WORKER_BATCH_SIZE: ${MAILFLOW_WORKER_BATCH_SIZE:-50}
+      MAILFLOW_RETRY_BASE_SECONDS: ${MAILFLOW_RETRY_BASE_SECONDS:-30}
+      MAILFLOW_RETRY_MAX_SECONDS: ${MAILFLOW_RETRY_MAX_SECONDS:-3600}
+      MAILFLOW_PROVIDER_TIMEOUT_SECONDS: ${MAILFLOW_PROVIDER_TIMEOUT_SECONDS:-20}
+      MAILFLOW_DNS_TIMEOUT_SECONDS: ${MAILFLOW_DNS_TIMEOUT_SECONDS:-3}
+      WEBHOOK_TOLERANCE_SECONDS: ${WEBHOOK_TOLERANCE_SECONDS:-300}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      MAILFLOW_PUBLIC_BASE_URL: ${MAILFLOW_PUBLIC_BASE_URL:-http://localhost:8080}
+      MAILFLOW_UNSUBSCRIBE_SECRET: ${MAILFLOW_UNSUBSCRIBE_SECRET:-dev-unsubscribe-secret-change-me-123456}
+      MAILFLOW_SUPPRESSION_SECRET: ${MAILFLOW_SUPPRESSION_SECRET:-dev-suppression-secret-change-me-123456}
+      MAILFLOW_CSRF_SECRET: ${MAILFLOW_CSRF_SECRET:-dev-csrf-secret-change-me-123456789}
+      MAILFLOW_SECURITY_SECRET: ${MAILFLOW_SECURITY_SECRET:-dev-security-secret-change-me-123456}
+      MAILFLOW_REQUIRE_WORKER_HEALTH: "false"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./backend
+    environment:
+      <<: *mailflow_env
+      MAILFLOW_SERVICE_NAME: api
+    ports:
+      - "8000:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    environment:
+      <<: *mailflow_env
+      MAILFLOW_SERVICE_NAME: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  mailflow_pgdata:

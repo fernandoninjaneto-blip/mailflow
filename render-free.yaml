@@ -1,0 +1,73 @@
+# Staging temporário sem worker separado. Útil para validação sem cobrança,
+# mas NÃO substitui o staging production-like de render.yaml.
+services:
+  - type: web
+    name: mailflow-staging-lite
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.render
+    dockerCommand: /app/deploy/render/start-web-with-worker.sh
+    healthCheckPath: /api/health/ready
+    preDeployCommand: cd /app/backend && alembic upgrade head
+    autoDeploy: false
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mailflow-staging-lite-db
+          property: connectionString
+      - key: APP_URL
+        fromService:
+          type: web
+          name: mailflow-staging-lite
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_PUBLIC_BASE_URL
+        fromService:
+          type: web
+          name: mailflow-staging-lite
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_TRUSTED_ORIGINS
+        fromService:
+          type: web
+          name: mailflow-staging-lite
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SESSION_COOKIE_NAME
+        value: __Host-mailflow_session
+      - key: CSRF_COOKIE_NAME
+        value: __Host-mailflow_csrf
+      - key: SESSION_DAYS
+        value: "7"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: MAILFLOW_EXPOSE_RESET_TOKEN
+        value: "false"
+      - key: MAILFLOW_CSRF_ENABLED
+        value: "true"
+      - key: MAILFLOW_CSRF_SECRET
+        generateValue: true
+      - key: MAILFLOW_SECURITY_SECRET
+        generateValue: true
+      - key: MAILFLOW_UNSUBSCRIBE_SECRET
+        generateValue: true
+      - key: MAILFLOW_SUPPRESSION_SECRET
+        generateValue: true
+      - key: MAILFLOW_ORIGIN_CHECK_ENABLED
+        value: "true"
+      - key: MAILFLOW_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: MAIL_PROVIDER
+        value: console
+      - key: MAILFLOW_REQUIRE_WORKER_HEALTH
+        value: "true"
+      - key: MAILFLOW_WORKER_STALE_SECONDS
+        value: "90"
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: mailflow-staging-lite-db
+    plan: free
+    postgresMajorVersion: "17"

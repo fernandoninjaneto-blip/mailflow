@@ -1,0 +1,141 @@
+services:
+  - type: web
+    name: mailflow-staging-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile.render
+    dockerCommand: /app/deploy/render/start-web.sh
+    healthCheckPath: /api/health/live
+    preDeployCommand: cd /app/backend && alembic upgrade head
+    autoDeploy: false
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mailflow-staging-db
+          property: connectionString
+      - key: APP_URL
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_PUBLIC_BASE_URL
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_TRUSTED_ORIGINS
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: SESSION_COOKIE_NAME
+        value: __Host-mailflow_session
+      - key: CSRF_COOKIE_NAME
+        value: __Host-mailflow_csrf
+      - key: SESSION_DAYS
+        value: "7"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: MAILFLOW_EXPOSE_RESET_TOKEN
+        value: "false"
+      - key: MAILFLOW_CSRF_ENABLED
+        value: "true"
+      - key: MAILFLOW_CSRF_SECRET
+        generateValue: true
+      - key: MAILFLOW_SECURITY_SECRET
+        generateValue: true
+      - key: MAILFLOW_UNSUBSCRIBE_SECRET
+        generateValue: true
+      - key: MAILFLOW_SUPPRESSION_SECRET
+        generateValue: true
+      - key: MAILFLOW_ORIGIN_CHECK_ENABLED
+        value: "true"
+      - key: MAILFLOW_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: MAIL_PROVIDER
+        value: console
+      - key: MAILFLOW_REQUIRE_WORKER_HEALTH
+        value: "true"
+      - key: MAILFLOW_WORKER_STALE_SECONDS
+        value: "90"
+      - key: LOG_LEVEL
+        value: INFO
+
+  - type: worker
+    name: mailflow-staging-worker
+    runtime: docker
+    plan: 0.5c-512mb
+    dockerfilePath: ./Dockerfile.render
+    dockerCommand: /app/deploy/render/start-worker.sh
+    autoDeploy: false
+    envVars:
+      - key: APP_ENV
+        value: staging
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mailflow-staging-db
+          property: connectionString
+      - key: APP_URL
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_PUBLIC_BASE_URL
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_TRUSTED_ORIGINS
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MAILFLOW_CSRF_SECRET
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: MAILFLOW_CSRF_SECRET
+      - key: MAILFLOW_SECURITY_SECRET
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: MAILFLOW_SECURITY_SECRET
+      - key: MAILFLOW_UNSUBSCRIBE_SECRET
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: MAILFLOW_UNSUBSCRIBE_SECRET
+      - key: MAILFLOW_SUPPRESSION_SECRET
+        fromService:
+          type: web
+          name: mailflow-staging-web
+          envVarKey: MAILFLOW_SUPPRESSION_SECRET
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: MAILFLOW_EXPOSE_RESET_TOKEN
+        value: "false"
+      - key: MAILFLOW_CSRF_ENABLED
+        value: "true"
+      - key: MAILFLOW_ORIGIN_CHECK_ENABLED
+        value: "true"
+      - key: MAILFLOW_RATE_LIMIT_ENABLED
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: MAIL_PROVIDER
+        value: console
+      - key: MAILFLOW_WORKER_INTERVAL_SECONDS
+        value: "2"
+      - key: MAILFLOW_WORKER_BATCH_SIZE
+        value: "25"
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: mailflow-staging-db
+    plan: free
+    postgresMajorVersion: "17"
